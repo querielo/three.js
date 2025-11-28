@@ -45452,7 +45452,7 @@ const _lookTarget$1 = /*@__PURE__*/ new Vector3();
  *
  * @abstract
  */
-class LightShadow {
+class LightShadow extends EventDispatcher {
 
 	/**
 	 * Constructs a new light shadow.
@@ -45460,6 +45460,8 @@ class LightShadow {
 	 * @param {Camera} camera - The light's view of the world.
 	 */
 	constructor( camera ) {
+
+		super();
 
 		/**
 		 * The light's view of the world.
@@ -45704,6 +45706,8 @@ class LightShadow {
 			this.mapPass.dispose();
 
 		}
+
+		this.dispatchEvent( { type: 'dispose' } );
 
 	}
 
