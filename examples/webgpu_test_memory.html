@@ -45,7 +45,7 @@
 			let generateMeshes = true;
 			let mesh;
 			let postProcessing;
-			let aoNode, outlineNode;
+			let aoNode, outlineNode, scenePass, prePass;
 			const selectedObjects = [];
 
 			THREE.Mesh.prototype.dispose = function () {
@@ -102,7 +102,7 @@
 				scene = new THREE.Scene();
 				scene.background = new THREE.Color( 0xffffff );
 
-				renderer = new THREE.WebGPURenderer();
+				renderer = new THREE.WebGPURenderer({forceWebGL: true});
 				renderer.shadowMap.enabled = true;
 				renderer.setPixelRatio( window.devicePixelRatio );
 				renderer.setSize( window.innerWidth, window.innerHeight );
@@ -191,6 +191,20 @@
 
 				}
 
+				if ( scenePass ) {
+
+					scenePass.dispose();
+					scenePass = null;
+
+				}
+
+				if ( prePass ) {
+
+					prePass.dispose();
+					prePass = null;
+
+				}
+
 				if ( aoNode ) {
 
 					aoNode.dispose();
@@ -209,12 +223,12 @@
 
 					postProcessing = new THREE.PostProcessing( renderer );
 
-					const scenePass = pass( scene, camera );
+					scenePass = pass( scene, camera );
 					let colorNode = scenePass;
 
 					if ( params.enableAO ) {
 
-						const prePass = pass( scene, camera );
+						prePass = pass( scene, camera );
 						prePass.setMRT( mrt( {
 							output: directionToColor( normalView )
 						} ) );
@@ -286,7 +300,7 @@
 						scene.remove( mesh );
 
 						mesh.geometry.dispose();
-						mesh.material.map.dispose();
+						mesh.material.map?.dispose();
 						mesh.material.dispose();
 						mesh.dispose();
 
@@ -294,9 +308,9 @@
 
 					const geometry = new THREE.SphereGeometry( 50, Math.random() * 64, Math.random() * 32 );
 
-					const texture = new THREE.CanvasTexture( createImage() );
+					// const texture = new THREE.CanvasTexture( createImage() );
 
-					const material = new THREE.MeshLambertMaterial( { map: texture } );
+					const material = new THREE.MeshLambertMaterial( );
 
 					mesh = new THREE.Mesh( geometry, material );
 					mesh.castShadow = true;
