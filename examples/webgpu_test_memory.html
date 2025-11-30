@@ -48,6 +48,12 @@
 			let aoNode, outlineNode;
 			const selectedObjects = [];
 
+			THREE.Mesh.prototype.dispose = function () {
+
+				this.dispatchEvent( { type: 'dispose' } );
+
+			};
+
 			const params = {
 				castShadow: true,
 				enablePP: false,
@@ -85,7 +91,7 @@
 
 			init();
 
-			function init() {
+			async function init() {
 
 				const container = document.createElement( 'div' );
 				document.body.appendChild( container );
@@ -103,6 +109,43 @@
 				renderer.setAnimationLoop( animate );
 				renderer.inspector = new Inspector();
 				container.appendChild( renderer.domElement );
+
+				await renderer.init();
+
+				// Patch RenderObjects to handle render object disposal
+				const RenderObjects = renderer._objects.constructor;
+				const createRenderObject = RenderObjects.prototype.createRenderObject;
+
+				if ( createRenderObject.name !== 'patchedCreateRenderObject' ) {
+
+					RenderObjects.prototype.createRenderObject = function patchedCreateRenderObject( nodes, geometries, renderer, object, material, scene, camera, lightsNode, renderContext, clippingContext, passId ) {
+
+						const renderObject = createRenderObject.call( this, nodes, geometries, renderer, object, material, scene, camera, lightsNode, renderContext, clippingContext, passId );
+
+						const dispose = renderObject.dispose;
+						let isDisposed = false;
+
+						renderObject.dispose = function () {
+
+							if ( isDisposed === true ) return;
+
+							isDisposed = true;
+
+							dispose.call( this );
+
+						};
+
+						object.addEventListener( 'dispose', function () {
+
+							renderObject.dispose();
+
+						} );
+
+						return renderObject;
+
+					};
+
+				}
 
 				light = new THREE.DirectionalLight( 0xffffff, 1 );
 				light.position.set( 0, 100, 0 );
@@ -245,6 +288,7 @@
 						mesh.geometry.dispose();
 						mesh.material.map.dispose();
 						mesh.material.dispose();
+						mesh.dispose();
 
 					}
 
