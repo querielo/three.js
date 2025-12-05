@@ -63,6 +63,15 @@ class EnvironmentNode extends LightingNode {
 
 				_envNodeCache.set( value, cacheEnvNode );
 
+				const onDispose = () => {
+
+					cacheEnvNode.dispose();
+					_envNodeCache.delete( value );
+
+				};
+
+				value.addEventListener( 'dispose', onDispose, { once: true } );
+
 			}
 
 			envNode	= cacheEnvNode;

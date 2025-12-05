@@ -426,6 +426,14 @@ class TiledLightsNode extends LightsNode {
 
 	}
 
+	dispose() {
+
+		this._lightsTexture.dispose();
+
+		super.dispose();
+
+	}
+
 }
 
 export default TiledLightsNode;

@@ -332,11 +332,19 @@ class PMREMNode extends TempNode {
 
 	}
 
+	/**
+	 * Frees internal resources. This method should be called
+	 * when the node is no longer required.
+	 */
 	dispose() {
 
-		super.dispose();
+		if ( this._generator !== null ) {
 
-		if ( this._generator !== null ) this._generator.dispose();
+			this._generator.dispose();
+
+		}
+
+		super.dispose();
 
 	}
 

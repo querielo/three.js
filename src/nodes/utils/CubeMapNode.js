@@ -158,6 +158,14 @@ class CubeMapNode extends TempNode {
 
 	}
 
+	dispose() {
+
+		this._defaultTexture.dispose();
+
+		super.dispose();
+
+	}
+
 }
 
 export default CubeMapNode;

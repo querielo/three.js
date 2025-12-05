@@ -239,6 +239,8 @@ class AnamorphicNode extends TempNode {
 
 		this._renderTarget.dispose();
 
+		this._material.dispose();
+
 	}
 
 	/**

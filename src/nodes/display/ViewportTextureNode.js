@@ -199,6 +199,18 @@ class ViewportTextureNode extends TextureNode {
 
 	}
 
+	dispose() {
+
+		if ( this.defaultFramebuffer !== null ) {
+
+			this.defaultFramebuffer.dispose();
+
+		}
+
+		super.dispose();
+
+	}
+
 }
 
 export default ViewportTextureNode;

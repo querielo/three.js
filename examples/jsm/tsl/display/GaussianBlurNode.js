@@ -294,6 +294,8 @@ class GaussianBlurNode extends TempNode {
 		this._horizontalRT.dispose();
 		this._verticalRT.dispose();
 
+		this._material.dispose();
+
 	}
 
 	/**

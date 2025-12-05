@@ -252,6 +252,16 @@ class DenoiseNode extends TempNode {
 
 	}
 
+	/**
+	 * Frees internal resources. This method should be called
+	 * when the effect is no longer required.
+	 */
+	dispose() {
+
+		this.noiseNode.value.dispose();
+
+	}
+
 }
 
 export default DenoiseNode;

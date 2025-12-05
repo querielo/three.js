@@ -251,6 +251,15 @@ class RTTNode extends TextureNode {
 
 	}
 
+	dispose() {
+
+		this.renderTarget.dispose();
+		this._quadMesh.dispose();
+
+		super.dispose();
+
+	}
+
 }
 
 export default RTTNode;

@@ -303,6 +303,8 @@ class SSAAPassNode extends PassNode {
 
 		}
 
+		this._quadMesh.material.dispose();
+
 	}
 
 }

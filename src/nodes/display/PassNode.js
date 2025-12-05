@@ -953,14 +953,16 @@ class PassNode extends TempNode {
 	}
 
 	/**
-	 * Frees internal resources. Should be called when the node is no longer in use.
+	 * Frees internal resources. This method should be called
+	 * when the pass is no longer required.
 	 */
 	dispose() {
 
 		this.renderTarget.dispose();
 
-	}
+		super.dispose();
 
+	}
 
 }
 
