@@ -177,7 +177,7 @@ class ReferenceNode extends Node {
 		 * @type {?string}
 		 * @default null
 		 */
-		this.name = 'ref_' + this.properties.join( '_' );
+		this.name = null;
 
 		/**
 		 * Overwritten since reference nodes are updated per object.

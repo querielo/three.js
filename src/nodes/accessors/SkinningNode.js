@@ -74,6 +74,7 @@ class SkinningNode extends Node {
 		 * @type {Node<mat4>}
 		 */
 		this.bindMatrixNode = reference( 'bindMatrix', 'mat4' );
+		this.bindMatrixNode.name = 'bindMatrixNode';
 
 		/**
 		 * The bind matrix inverse node.
@@ -81,6 +82,7 @@ class SkinningNode extends Node {
 		 * @type {Node<mat4>}
 		 */
 		this.bindMatrixInverseNode = reference( 'bindMatrixInverse', 'mat4' );
+		this.bindMatrixInverseNode.name = 'bindMatrixInverseNode';
 
 		/**
 		 * The bind matrices as a uniform buffer node.
@@ -88,6 +90,7 @@ class SkinningNode extends Node {
 		 * @type {Node}
 		 */
 		this.boneMatricesNode = referenceBuffer( 'skeleton.boneMatrices', 'mat4', skinnedMesh.skeleton.bones.length );
+		this.boneMatricesNode.name = 'boneMatricesNode';
 
 		/**
 		 * The current vertex position in local space.
@@ -191,6 +194,7 @@ class SkinningNode extends Node {
 			skinnedMesh.skeleton.previousBoneMatrices = new Float32Array( skinnedMesh.skeleton.boneMatrices );
 
 			this.previousBoneMatricesNode = referenceBuffer( 'skeleton.previousBoneMatrices', 'mat4', skinnedMesh.skeleton.bones.length );
+			this.previousBoneMatricesNode.name = 'previousBoneMatricesNode';
 
 		}
 

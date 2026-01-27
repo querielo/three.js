@@ -236,7 +236,10 @@ class MorphNode extends Node {
 
 			} else {
 
-				influence.assign( reference( 'morphTargetInfluences', 'float' ).element( i ).toVar() );
+				const morphTarget = reference( 'morphTargetInfluences', 'float' );
+				morphTarget.name = 'morphTargetInfluencesNode';
+
+				influence.assign( morphTarget.element( i ).toVar() );
 
 			}
 
