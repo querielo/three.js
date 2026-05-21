@@ -137,19 +137,21 @@ class Line2NodeMaterial extends NodeMaterial {
 		const useDash = this._useDash;
 		const useWorldUnits = this._useWorldUnits;
 
-		const trimSegment = Fn( ( { start, end } ) => {
+		const trimSegmentAlpha = Fn( ( { start, end } ) => {
 
 			const a = cameraProjectionMatrix.element( 2 ).element( 2 ); // 3nd entry in 3th column
 			const b = cameraProjectionMatrix.element( 3 ).element( 2 ); // 3nd entry in 4th column
-			const nearEstimate = b.mul( - 0.5 ).div( a );
 
-			const alpha = nearEstimate.sub( start.z ).div( end.z.sub( start.z ) );
+			// we need different nearEstimate formula for reversed and default depth buffer
+			// a is positive with a reversed depth buffer so it can be used for controlling the code flow
 
-			return vec4( mix( start.xyz, end.xyz, alpha ), end.w );
+			const nearEstimate = a.greaterThan( 0 ).select( b.negate().div( a.add( 1 ) ), b.mul( - 0.5 ).div( a ) );
+
+			return nearEstimate.sub( start.z ).div( end.z.sub( start.z ) );
 
 		} ).setLayout( {
-			name: 'trimSegment',
-			type: 'vec4',
+			name: 'trimSegmentAlpha',
+			type: 'float',
 			inputs: [
 				{ name: 'start', type: 'vec4' },
 				{ name: 'end', type: 'vec4' }
@@ -166,18 +168,12 @@ class Line2NodeMaterial extends NodeMaterial {
 			const start = vec4( modelViewMatrix.mul( vec4( instanceStart, 1.0 ) ) ).toVar( 'start' );
 			const end = vec4( modelViewMatrix.mul( vec4( instanceEnd, 1.0 ) ) ).toVar( 'end' );
 
+			let distanceStart, distanceEnd;
+
 			if ( useDash ) {
 
-				const dashScaleNode = this.dashScaleNode ? float( this.dashScaleNode ) : materialLineScale;
-				const offsetNode = this.offsetNode ? float( this.offsetNode ) : materialLineDashOffset;
-
-				const instanceDistanceStart = attribute( 'instanceDistanceStart' );
-				const instanceDistanceEnd = attribute( 'instanceDistanceEnd' );
-
-				let lineDistance = positionGeometry.y.lessThan( 0.5 ).select( dashScaleNode.mul( instanceDistanceStart ), dashScaleNode.mul( instanceDistanceEnd ) );
-				lineDistance = lineDistance.add( offsetNode );
-
-				varyingProperty( 'float', 'lineDistance' ).assign( lineDistance );
+				distanceStart = float( attribute( 'instanceDistanceStart' ) ).toVar( 'distanceStart' );
+				distanceEnd = float( attribute( 'instanceDistanceEnd' ) ).toVar( 'distanceEnd' );
 
 			}
 
@@ -201,15 +197,41 @@ class Line2NodeMaterial extends NodeMaterial {
 
 				If( start.z.lessThan( 0.0 ).and( end.z.greaterThan( 0.0 ) ), () => {
 
-					end.assign( trimSegment( { start: start, end: end } ) );
+					const alpha = trimSegmentAlpha( { start: start, end: end } );
+					end.assign( vec4( mix( start.xyz, end.xyz, alpha ), end.w ) );
+
+					if ( useDash ) {
+
+						distanceEnd.assign( mix( distanceStart, distanceEnd, alpha ) );
+
+					}
 
 				} ).ElseIf( end.z.lessThan( 0.0 ).and( start.z.greaterThanEqual( 0.0 ) ), () => {
 
-					start.assign( trimSegment( { start: end, end: start } ) );
+					const alpha = trimSegmentAlpha( { start: end, end: start } );
+					start.assign( vec4( mix( end.xyz, start.xyz, alpha ), start.w ) );
+
+					if ( useDash ) {
+
+						distanceStart.assign( mix( distanceEnd, distanceStart, alpha ) );
+
+					}
 
 			 	} );
 
 			} );
+
+			if ( useDash ) {
+
+				const dashScaleNode = this.dashScaleNode ? float( this.dashScaleNode ) : materialLineScale;
+				const offsetNode = this.offsetNode ? float( this.offsetNode ) : materialLineDashOffset;
+
+				let lineDistance = positionGeometry.y.lessThan( 0.5 ).select( dashScaleNode.mul( distanceStart ), dashScaleNode.mul( distanceEnd ) );
+				lineDistance = lineDistance.add( offsetNode );
+
+				varyingProperty( 'float', 'lineDistance' ).assign( lineDistance );
+
+			}
 
 			// clip space
 			const clipStart = cameraProjectionMatrix.mul( start );
@@ -337,6 +359,15 @@ class Line2NodeMaterial extends NodeMaterial {
 
 			return vec2( mua, mub );
 
+		} ).setLayout( {
+			name: 'closestLineToLine',
+			type: 'vec2',
+			inputs: [
+				{ name: 'p1', type: 'vec3' },
+				{ name: 'p2', type: 'vec3' },
+				{ name: 'p3', type: 'vec3' },
+				{ name: 'p4', type: 'vec3' }
+			]
 		} );
 
 		this.colorNode = Fn( () => {
@@ -534,6 +565,33 @@ class Line2NodeMaterial extends NodeMaterial {
 			this.needsUpdate = true;
 
 		}
+
+	}
+
+	/**
+	 * Copies the properties of the given material to this instance.
+	 *
+	 * @param {Line2NodeMaterial} source - The material to copy.
+	 * @return {Line2NodeMaterial} A reference to this material.
+	 */
+	copy( source ) {
+
+		super.copy( source );
+
+		this.vertexColors = source.vertexColors;
+		this.dashOffset = source.dashOffset;
+
+		this.lineColorNode = source.lineColorNode;
+		this.offsetNode = source.offsetNode;
+		this.dashScaleNode = source.dashScaleNode;
+		this.dashSizeNode = source.dashSizeNode;
+		this.gapSizeNode = source.gapSizeNode;
+
+		this._useDash = source._useDash;
+		this._useAlphaToCoverage = source._useAlphaToCoverage;
+		this._useWorldUnits = source._useWorldUnits;
+
+		return this;
 
 	}
 

@@ -1,6 +1,8 @@
 import { HalfFloatType, UnsignedByteType } from '../../../constants.js';
 import { GPUPrimitiveTopology, GPUTextureFormat } from './WebGPUConstants.js';
 
+const _commandList = [ null ];
+
 /**
  * A WebGPU backend utility module with common helpers.
  *
@@ -42,11 +44,27 @@ class WebGPUUtils {
 
 			} else if ( renderContext.stencil ) {
 
-				format = GPUTextureFormat.Depth24PlusStencil8;
+				if ( this.backend.renderer.reversedDepthBuffer === true ) {
+
+					format = GPUTextureFormat.Depth32FloatStencil8;
+
+				} else {
+
+					format = GPUTextureFormat.Depth24PlusStencil8;
+
+				}
 
 			} else {
 
-				format = GPUTextureFormat.Depth24Plus;
+				if ( this.backend.renderer.reversedDepthBuffer === true ) {
+
+					format = GPUTextureFormat.Depth32Float;
+
+				} else {
+
+					format = GPUTextureFormat.Depth24Plus;
+
+				}
 
 			}
 
@@ -242,11 +260,29 @@ class WebGPUUtils {
 
 		} else {
 
-			throw new Error( 'Unsupported output buffer type.' );
+			throw new Error( 'THREE.WebGPUUtils: Unsupported output buffer type.' );
 
 		}
 
 	}
+
+}
+
+/**
+ * Submits a single GPU command to the device queue using a shared, module-scoped
+ * array to avoid per-call array allocations.
+ *
+ * @private
+ * @param {GPUDevice} device - The GPU device.
+ * @param {GPUCommandBuffer} command - The command buffer to submit.
+ */
+export function submit( device, command ) {
+
+	_commandList[ 0 ] = command;
+
+	device.queue.submit( _commandList );
+
+	_commandList[ 0 ] = null;
 
 }
 

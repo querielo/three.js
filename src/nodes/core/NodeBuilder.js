@@ -23,7 +23,7 @@ import CubeRenderTarget from '../../renderers/common/CubeRenderTarget.js';
 
 import BindGroup from '../../renderers/common/BindGroup.js';
 
-import { REVISION, IntType, UnsignedIntType, LinearFilter, LinearMipmapNearestFilter, NearestMipmapLinearFilter, LinearMipmapLinearFilter, NormalBlending } from '../../constants.js';
+import { REVISION, IntType, UnsignedIntType, LinearFilter, LinearMipmapNearestFilter, NearestMipmapLinearFilter, LinearMipmapLinearFilter, NormalBlending, RedFormat, RGFormat, RGBFormat, RedIntegerFormat, RGIntegerFormat, RGBIntegerFormat } from '../../constants.js';
 import { RenderTarget } from '../../core/RenderTarget.js';
 import { Color } from '../../math/Color.js';
 import { Vector2 } from '../../math/Vector2.js';
@@ -35,6 +35,7 @@ import { warn, error, yieldToMain } from '../../utils.js';
 let _id = 0;
 
 const _bindingGroupsCache = new WeakMap();
+const _functionNodeCache = new WeakMap();
 
 const sharedNodeData = new WeakMap();
 
@@ -535,6 +536,61 @@ class NodeBuilder {
 	}
 
 	/**
+	 * Returns the type of the color output based on the renderer's render target.
+	 *
+	 * @param {number} [index=0] - The index of the render target texture.
+	 * @return {string} The type.
+	 */
+	getOutputType( index = 0 ) {
+
+		let type = 'vec4';
+
+		const renderTarget = this.renderer.getRenderTarget();
+
+		if ( renderTarget !== null ) {
+
+			const renderTargetType = renderTarget.textures[ index ].type;
+			const renderTargetFormat = renderTarget.textures[ index ].format;
+
+			let typeStr = 'vec';
+
+			if ( renderTargetType === IntType ) {
+
+				typeStr = 'ivec';
+
+			} else if ( renderTargetType === UnsignedIntType ) {
+
+				typeStr = 'uvec';
+
+			}
+
+			if ( renderTargetFormat === RedFormat || renderTargetFormat === RedIntegerFormat ) {
+
+				if ( renderTargetType === IntType ) type = 'int';
+				else if ( renderTargetType === UnsignedIntType ) type = 'uint';
+				else type = 'float';
+
+			} else if ( renderTargetFormat === RGFormat || renderTargetFormat === RGIntegerFormat ) {
+
+				type = `${ typeStr }2`;
+
+			} else if ( renderTargetFormat === RGBFormat || renderTargetFormat === RGBIntegerFormat ) {
+
+				type = `${ typeStr }3`;
+
+			} else {
+
+				type = `${ typeStr }4`;
+
+			}
+
+		}
+
+		return type;
+
+	}
+
+	/**
 	 * Returns the output struct name which is required by
 	 * {@link OutputStructNode}.
 	 *
@@ -899,7 +955,7 @@ class NodeBuilder {
 
 		if ( lastChain !== node ) {
 
-			throw new Error( 'NodeBuilder: Invalid node chaining!' );
+			throw new Error( 'THREE.NodeBuilder: Invalid node chaining!' );
 
 		}
 
@@ -1330,7 +1386,7 @@ class NodeBuilder {
 
 		}
 
-		throw new Error( `NodeBuilder: Type '${type}' not found in generate constant attempt.` );
+		throw new Error( `THREE.NodeBuilder: Type '${type}' not found in generate constant attempt.` );
 
 	}
 
@@ -1468,12 +1524,10 @@ class NodeBuilder {
 
 		const type = texture.type;
 
-		if ( texture.isDataTexture ) {
+		if ( texture.isDepthTexture === true ) return 'float';
 
-			if ( type === IntType ) return 'int';
-			if ( type === UnsignedIntType ) return 'uint';
-
-		}
+		if ( type === IntType ) return 'int';
+		if ( type === UnsignedIntType ) return 'uint';
 
 		return 'float';
 
@@ -1699,7 +1753,7 @@ class NodeBuilder {
 
 		} else {
 
-			throw new Error( 'NodeBuilder: Invalid active stack removal.' );
+			throw new Error( 'THREE.NodeBuilder: Invalid active stack removal.' );
 
 		}
 
@@ -1839,9 +1893,10 @@ class NodeBuilder {
 	 *
 	 * @param {BufferAttributeNode} node - The buffer attribute node.
 	 * @param {string} type - The node type.
+	 * @param {?string} [name=null] - The name of the buffer attribute.
 	 * @return {NodeAttribute} The node attribute.
 	 */
-	getBufferAttributeFromNode( node, type ) {
+	getBufferAttributeFromNode( node, type, name = null ) {
 
 		const nodeData = this.getDataFromNode( node, 'vertex' );
 
@@ -1851,7 +1906,13 @@ class NodeBuilder {
 
 			const index = this.uniforms.index ++;
 
-			bufferAttribute = new NodeAttribute( 'nodeAttribute' + index, type, node );
+			if ( name === null ) {
+
+				name = 'nodeAttribute' + index;
+
+			}
+
+			bufferAttribute = new NodeAttribute( name, type, node );
 
 			this.bufferAttributes.push( bufferAttribute );
 
@@ -2371,15 +2432,34 @@ class NodeBuilder {
 	 */
 	buildFunctionNode( shaderNode ) {
 
-		const fn = new FunctionNode();
+		const backend = this.renderer.backend;
 
-		const previous = this.currentFunctionNode;
+		let cache = _functionNodeCache.get( backend );
 
-		this.currentFunctionNode = fn;
+		if ( cache === undefined ) {
 
-		fn.code = this.buildFunctionCode( shaderNode );
+			cache = new WeakMap();
+			_functionNodeCache.set( backend, cache );
 
-		this.currentFunctionNode = previous;
+		}
+
+		let fn = cache.get( shaderNode );
+
+		if ( fn === undefined ) {
+
+			fn = new FunctionNode();
+
+			const previous = this.currentFunctionNode;
+
+			this.currentFunctionNode = fn;
+
+			fn.code = this.buildFunctionCode( shaderNode );
+
+			this.currentFunctionNode = previous;
+
+			cache.set( shaderNode, fn );
+
+		}
 
 		return fn;
 
@@ -2672,11 +2752,12 @@ class NodeBuilder {
 	 * Returns the variable definitions as a shader string for the given shader stage.
 	 *
 	 * @param {('vertex'|'fragment'|'compute'|'any')} shaderStage - The shader stage.
+	 * @param {boolean} [global=false] - Whether the variables are global.
 	 * @return {string} The variable code section.
 	 */
-	getVars( shaderStage ) {
+	getVars( shaderStage, global = false ) {
 
-		let snippet = '';
+		const snippets = [];
 
 		const vars = this.vars[ shaderStage ];
 
@@ -2684,13 +2765,13 @@ class NodeBuilder {
 
 			for ( const variable of vars ) {
 
-				snippet += `${ this.getVar( variable.type, variable.name ) }; `;
+				snippets.push( `${ this.getVar( variable.type, variable.name, variable.count ) };` );
 
 			}
 
 		}
 
-		return snippet;
+		return snippets.join( global ? '\n' : '\n\t' );
 
 	}
 
@@ -2939,13 +3020,41 @@ class NodeBuilder {
 	}
 
 	/**
-	 * Central build method which controls the build for the given object.
-	 *
-	 * @return {NodeBuilder} A reference to this node builder.
+	 * Prebuild the node builder.
 	 */
-	build() {
+	prebuild() {
 
-		const { object, material, renderer } = this;
+		const { object, renderer, material } = this;
+
+		// < renderer.contextNode >
+
+		if ( renderer.contextNode.isContextNode === true ) {
+
+			this.context = { ...this.context, ...renderer.contextNode.getFlowContextData() };
+
+		} else {
+
+			error( 'NodeBuilder: "renderer.contextNode" must be an instance of `context()`.' );
+
+		}
+
+		// < material.contextNode >
+
+		if ( material && material.contextNode ) {
+
+			if ( material.contextNode.isContextNode === true ) {
+
+				this.context = { ...this.context, ...material.contextNode.getFlowContextData() };
+
+			} else {
+
+				error( 'NodeBuilder: "material.contextNode" must be an instance of `context()`.' );
+
+			}
+
+		}
+
+		// < nodeMaterial >
 
 		if ( material !== null ) {
 
@@ -2953,7 +3062,7 @@ class NodeBuilder {
 
 			if ( nodeMaterial === null ) {
 
-				error( `NodeMaterial: Material "${ material.type }" is not compatible.` );
+				error( `NodeBuilder: Material "${ material.type }" is not compatible.` );
 
 				nodeMaterial = new NodeMaterial();
 
@@ -2966,6 +3075,17 @@ class NodeBuilder {
 			this.addFlow( 'compute', object );
 
 		}
+
+	}
+
+	/**
+	 * Central build method which controls the build for the given object.
+	 *
+	 * @return {NodeBuilder} A reference to this node builder.
+	 */
+	build() {
+
+		this.prebuild();
 
 		// setup() -> stage 1: create possible new nodes and/or return an output reference node
 		// analyze()   -> stage 2: analyze nodes to possible optimization and validation
@@ -3025,27 +3145,7 @@ class NodeBuilder {
 	 */
 	async buildAsync() {
 
-		const { object, material, renderer } = this;
-
-		if ( material !== null ) {
-
-			let nodeMaterial = renderer.library.fromMaterial( material );
-
-			if ( nodeMaterial === null ) {
-
-				error( `NodeMaterial: Material "${ material.type }" is not compatible.` );
-
-				nodeMaterial = new NodeMaterial();
-
-			}
-
-			nodeMaterial.build( this );
-
-		} else {
-
-			this.addFlow( 'compute', object );
-
-		}
+		this.prebuild();
 
 		// setup() -> stage 1: create possible new nodes and/or return an output reference node
 		// analyze()   -> stage 2: analyze nodes to possible optimization and validation
@@ -3145,7 +3245,7 @@ class NodeBuilder {
 			else if ( type === 'mat4' ) node = new Matrix4NodeUniform( uniformNode );
 			else {
 
-				throw new Error( `Uniform "${ type }" not implemented.` );
+				throw new Error( `THREE.NodeBuilder: Uniform "${ type }" not implemented.` );
 
 			}
 
